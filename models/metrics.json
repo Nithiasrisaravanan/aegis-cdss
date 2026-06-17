@@ -1,0 +1,35 @@
+{
+  "primary": {
+    "model": "RandomForest",
+    "accuracy": 0.8667,
+    "precision": 0.8846,
+    "recall": 0.8214,
+    "f1": 0.8519,
+    "roc_auc": 0.9375
+  },
+  "decision_tree": {
+    "model": "DecisionTree",
+    "accuracy": 0.7,
+    "precision": 0.75,
+    "recall": 0.5357,
+    "f1": 0.625,
+    "roc_auc": 0.745
+  },
+  "test_size": 60,
+  "train_size": 237,
+  "features": [
+    "age",
+    "sex",
+    "cp",
+    "trestbps",
+    "chol",
+    "fbs",
+    "restecg",
+    "thalach",
+    "exang",
+    "oldpeak",
+    "slope",
+    "ca",
+    "thal"
+  ]
+}
