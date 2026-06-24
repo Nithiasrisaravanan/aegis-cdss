@@ -42,12 +42,13 @@ export default function ResultsPanel({ results }) {
     <div className="space-y-4">
       {/* Top 3 Cards */}
       <div className="grid grid-cols-3 gap-4">
-        {/* Primary Assessment */}
+         {/* Primary Assessment */}
         <div className="bg-gray-900 border border-blue-800 rounded-xl p-4">
           <p className="text-blue-400 text-xs font-bold mb-2">PRIMARY ASSESSMENT</p>
           <p className="text-white font-bold text-lg">{prediction.primary.label}</p>
           <p className="text-3xl font-bold text-blue-400">{prediction.primary.probability}%</p>
-          <p className="text-gray-500 text-xs">{prediction.primary.model}</p>
+          <p className="text-gray-500 text-xs mb-1">{prediction.primary.model}</p>
+          <p className="text-gray-400 text-xs leading-relaxed">{prediction.primary.description}</p>
         </div>
 
         {/* System Confidence */}
@@ -77,11 +78,6 @@ export default function ResultsPanel({ results }) {
               <span className="text-blue-400 font-bold text-sm">{d.probability}%</span>
             </div>
           ))}
-          <div className="mt-2 border-t border-gray-700 pt-2">
-            <p className="text-gray-500 text-xs">Consider also:</p>
-            <p className="text-gray-400 text-xs">• Stable Angina Pectoris</p>
-            <p className="text-gray-400 text-xs">• Hypertensive Heart Disease</p>
-          </div>
         </div>
       </div>
 

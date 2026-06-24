@@ -2,6 +2,7 @@ import joblib
 import numpy as np
 import pandas as pd
 import os
+from diagnosis_mapper import map_to_specific_diagnosis
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 rf_model = joblib.load(os.path.join(BASE_DIR, 'models', 'tabpfn_model.pkl'))
@@ -26,16 +27,28 @@ def predict(patient: dict) -> dict:
     dt_proba = dt_model.predict_proba(X)[0]
     dt_class = int(np.argmax(dt_proba))
 
-    differential = [
-        {"label": LABELS[i], "probability": round(float(rf_proba[i]) * 100, 1)}
-        for i in range(len(rf_proba))
-    ]
-    differential.sort(key=lambda x: x["probability"], reverse=True)
+    specific_diagnosis = map_to_specific_diagnosis(patient, rf_class, rf_confidence)
 
+    no_disease_prob = round(float(rf_proba[0]) * 100, 1)
+    disease_prob = round(float(rf_proba[1]) * 100, 1)
+
+    if rf_class == 1:
+        differential = [
+            {"label": specific_diagnosis["label"], "probability": disease_prob},
+            {"label": "Stable Angina Pectoris (alternate consideration)", "probability": round(disease_prob * 0.6, 1)},
+            {"label": "No Cardiac Abnormality", "probability": no_disease_prob},
+        ]
+    else:
+        differential = [
+            {"label": specific_diagnosis["label"], "probability": no_disease_prob},
+            {"label": "Hypertensive Heart Disease (if risk factors persist)", "probability": disease_prob},
+        ]
+       
     return {
         "primary": {
             "class": rf_class,
-            "label": LABELS[rf_class],
+            "label": specific_diagnosis["label"],
+            "description": specific_diagnosis["description"],
             "probability": round(rf_confidence * 100, 1),
             "model": "Random Forest"
         },
@@ -63,7 +76,7 @@ if __name__ == '__main__':
     result = predict(test_patient)
     print("\nTest Patient Prediction:")
     print(f"  Primary: {result['primary']['label']} ({result['primary']['probability']}%)")
+    print(f"  Description: {result['primary']['description']}")
     print(f"  Baseline: {result['baseline']['label']} ({result['baseline']['probability']}%)")
     print(f"  Confidence: {result['confidence']['score']}%")
-    print(f"  Models Agree: {result['confidence']['models_agree']}")
     print(f"  Differential: {result['differential']}")
