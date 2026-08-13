@@ -15,7 +15,7 @@ export default function ResultsPanel({ results }) {
     if (!patientName) return alert('Enter patient name!')
     setPublishing(true)
     try {
-      await axios.post('http://127.0.0.1:8000/prescriptions', {
+      await axios.post('import.meta.env.VITE_API_URL/prescriptions', {
         patient_name: patientName,
         age: parseInt(patientAge) || 0,
         gender: patientGender,

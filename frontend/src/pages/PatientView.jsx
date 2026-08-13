@@ -7,7 +7,7 @@ export default function PatientView() {
   const [tab, setTab] = useState('summary')
 
   useEffect(() => {
-    axios.get('http://127.0.0.1:8000/prescriptions')
+    axios.get('import.meta.env.VITE_API_URL/prescriptions')
       .then(res => {
         setPrescriptions(res.data)
         if (res.data.length > 0) setSelected(res.data[res.data.length - 1])
