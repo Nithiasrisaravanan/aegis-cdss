@@ -6,3 +6,5 @@ node_modules/
 frontend/dist/
 models/prescriptions.json
 .cache/
+models/ecg_cnn_model.pth
+data/ecg/
