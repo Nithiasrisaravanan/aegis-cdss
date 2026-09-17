@@ -15,7 +15,7 @@ export default function ResultsPanel({ results }) {
     if (!patientName) return alert('Enter patient name!')
     setPublishing(true)
     try {
-      await axios.post('import.meta.env.VITE_API_URL/prescriptions', {
+      await axios.post('http://127.0.0.1:8000/prescriptions', {
         patient_name: patientName,
         age: parseInt(patientAge) || 0,
         gender: patientGender,
@@ -38,17 +38,35 @@ export default function ResultsPanel({ results }) {
     { id: 'evidence', label: `NIH EVIDENCE (${articles?.length || 0})` },
   ]
 
+  const fusionUsed = prediction.fusion?.fusion_used
+
   return (
     <div className="space-y-4">
       {/* Top 3 Cards */}
       <div className="grid grid-cols-3 gap-4">
-         {/* Primary Assessment */}
+        {/* Primary Assessment */}
         <div className="bg-gray-900 border border-blue-800 rounded-xl p-4">
           <p className="text-blue-400 text-xs font-bold mb-2">PRIMARY ASSESSMENT</p>
           <p className="text-white font-bold text-lg">{prediction.primary.label}</p>
-          <p className="text-3xl font-bold text-blue-400">{prediction.primary.probability}%</p>
-          <p className="text-gray-500 text-xs mb-1">{prediction.primary.model}</p>
-          <p className="text-gray-400 text-xs leading-relaxed">{prediction.primary.description}</p>
+          <p className="text-3xl font-bold text-blue-400">
+            {fusionUsed ? prediction.primary.fused_probability : prediction.primary.probability}%
+          </p>
+          <p className="text-gray-500 text-xs mb-1">
+            {fusionUsed ? '🔬 Multimodal Fusion (RF + ECG CNN)' : prediction.primary.model}
+          </p>
+          {fusionUsed && (
+            <div className="mt-2 bg-gray-800 rounded-lg p-2 border border-yellow-800">
+              <p className="text-yellow-400 text-xs font-bold mb-1">FUSION BREAKDOWN</p>
+              <p className="text-gray-400 text-xs">Tabular RF (70%): {prediction.fusion.tabular_contribution}%</p>
+              <p className="text-gray-400 text-xs">ECG CNN (30%): {prediction.fusion.ecg_contribution}%</p>
+              <p className="text-green-400 text-xs font-bold mt-1">
+                ECG: {prediction.ecg?.ecg_class}
+              </p>
+            </div>
+          )}
+          <p className="text-gray-400 text-xs leading-relaxed mt-1">
+            {prediction.primary.description}
+          </p>
         </div>
 
         {/* System Confidence */}
@@ -67,6 +85,17 @@ export default function ResultsPanel({ results }) {
           <p className="text-gray-500 text-xs">
             Models {prediction.confidence.models_agree ? 'agree ✓' : 'disagree ⚠'}
           </p>
+          {prediction.ecg?.ecg_available && (
+            <div className="mt-2 border-t border-gray-700 pt-2">
+              <p className="text-yellow-400 text-xs font-bold">ECG ANALYSIS</p>
+              <p className="text-gray-400 text-xs">
+                Class: {prediction.ecg.ecg_class}
+              </p>
+              <p className="text-gray-400 text-xs">
+                Risk Score: {prediction.ecg.ecg_risk_score}%
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Differential Diagnosis */}
@@ -80,6 +109,23 @@ export default function ResultsPanel({ results }) {
           ))}
         </div>
       </div>
+
+      {/* ECG Probabilities Card (shown only when ECG uploaded) */}
+      {prediction.ecg?.ecg_available && prediction.ecg?.ecg_probabilities && (
+        <div className="bg-gray-900 border border-yellow-800 rounded-xl p-4">
+          <p className="text-yellow-400 text-xs font-bold mb-3">
+            🫀 ECG CNN CLASSIFICATION RESULTS
+          </p>
+          <div className="grid grid-cols-5 gap-2">
+            {Object.entries(prediction.ecg.ecg_probabilities).map(([label, prob]) => (
+              <div key={label} className="text-center bg-gray-800 rounded-lg p-2">
+                <p className="text-white font-bold text-sm">{(prob * 100).toFixed(1)}%</p>
+                <p className="text-gray-400 text-xs">{label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-2 flex-wrap">
@@ -108,7 +154,9 @@ export default function ResultsPanel({ results }) {
 
             {/* Publish Prescription */}
             <div className="mt-6 border-t border-gray-700 pt-4">
-              <h4 className="text-yellow-400 font-bold mb-3">📋 Publish Prescription to Patient Portal</h4>
+              <h4 className="text-yellow-400 font-bold mb-3">
+                📋 Publish Prescription to Patient Portal
+              </h4>
               <div className="grid grid-cols-3 gap-3 mb-3">
                 <input
                   placeholder="Patient Name"
@@ -184,7 +232,9 @@ export default function ResultsPanel({ results }) {
             {/* Credibility Table */}
             {credibility && credibility.length > 0 && (
               <div className="mt-6">
-                <h4 className="text-yellow-400 font-bold mb-3">Evidence-Validated Credibility Scores</h4>
+                <h4 className="text-yellow-400 font-bold mb-3">
+                  Evidence-Validated Credibility Scores
+                </h4>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
@@ -236,15 +286,21 @@ export default function ResultsPanel({ results }) {
         {/* MEDICINES TAB */}
         {tab === 'medicines' && (
           <div>
-            <h3 className="text-blue-400 font-bold mb-1">Suggested Healthcare Products & Stockists</h3>
-            <p className="text-gray-400 text-xs mb-4">Medicine recommendations and pharmacy locations in India</p>
+            <h3 className="text-blue-400 font-bold mb-1">
+              Suggested Healthcare Products & Stockists
+            </h3>
+            <p className="text-gray-400 text-xs mb-4">
+              Medicine recommendations and pharmacy locations in India
+            </p>
             <div className="space-y-4">
               {medicines.map((m, i) => (
                 <div key={i} className="bg-gray-800 rounded-xl p-4 border border-gray-700">
                   <div className="flex justify-between items-start mb-2">
                     <div>
                       <p className="text-white font-bold">{m.name}</p>
-                      <p className="text-gray-400 text-xs">Agency: {m.agency} | Country: {m.country}</p>
+                      <p className="text-gray-400 text-xs">
+                        Agency: {m.agency} | Country: {m.country}
+                      </p>
                       <p className="text-gray-400 text-xs">Code: {m.code}</p>
                     </div>
                     <a href={m.leaflet_url} target="_blank" rel="noreferrer"
@@ -256,13 +312,21 @@ export default function ResultsPanel({ results }) {
                     <p className="text-gray-400 text-xs mb-1 font-bold">LOCAL STOCKISTS</p>
                     <div className="flex flex-wrap gap-2 mb-3">
                       {m.stockists.map((s, j) => (
-                        <span key={j} className="bg-green-900 text-green-300 text-xs px-2 py-1 rounded-full">{s}</span>
+                        <span key={j}
+                          className="bg-green-900 text-green-300 text-xs px-2 py-1 rounded-full">
+                          {s}
+                        </span>
                       ))}
                     </div>
-                    <p className="text-gray-400 text-xs mb-1 font-bold">ALTERNATIVE BRANDS (INDIA)</p>
+                    <p className="text-gray-400 text-xs mb-1 font-bold">
+                      ALTERNATIVE BRANDS (INDIA)
+                    </p>
                     <div className="flex flex-wrap gap-2">
                       {m.indian_brands.map((b, j) => (
-                        <span key={j} className="bg-purple-900 text-purple-300 text-xs px-2 py-1 rounded-full">{b}</span>
+                        <span key={j}
+                          className="bg-purple-900 text-purple-300 text-xs px-2 py-1 rounded-full">
+                          {b}
+                        </span>
                       ))}
                     </div>
                   </div>
@@ -275,7 +339,9 @@ export default function ResultsPanel({ results }) {
         {/* NIH EVIDENCE TAB */}
         {tab === 'evidence' && (
           <div>
-            <h3 className="text-blue-400 font-bold mb-1">Retrieved NIH PubMed Literature</h3>
+            <h3 className="text-blue-400 font-bold mb-1">
+              Retrieved NIH PubMed Literature
+            </h3>
             <p className="text-gray-400 text-xs mb-4">
               Verifiable publications embedded and ranked using dynamic FAISS vector search
             </p>

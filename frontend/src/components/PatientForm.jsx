@@ -37,9 +37,26 @@ export default function PatientForm({ onSubmit, loading }) {
     oldpeak: 1.0, slope: 1, ca: 0, thal: 2
   })
   const [notes, setNotes] = useState('')
+  const [ecgSignal, setEcgSignal] = useState(null)
+  const [ecgFileName, setEcgFileName] = useState('')
 
   const handleChange = (key, value) => {
     setForm(prev => ({ ...prev, [key]: parseFloat(value) }))
+  }
+
+  const handleEcgUpload = (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    setEcgFileName(file.name)
+    const reader = new FileReader()
+    reader.onload = (evt) => {
+      const text = evt.target.result
+      const values = text.split(',')
+        .map(v => parseFloat(v.trim()))
+        .filter(v => !isNaN(v))
+      setEcgSignal(values.slice(0, 187))
+    }
+    reader.readAsText(file)
   }
 
   return (
@@ -96,13 +113,57 @@ export default function PatientForm({ onSubmit, loading }) {
         />
       </div>
 
+      {/* ECG Upload */}
+      <div className="mb-4">
+        <label className="text-gray-400 text-xs mb-1 block">
+          🫀 ECG SIGNAL (optional — upload .csv file)
+        </label>
+        <div className="border border-dashed border-gray-600 rounded-lg p-3 text-center">
+          <input
+            type="file"
+            accept=".csv"
+            onChange={handleEcgUpload}
+            className="hidden"
+            id="ecg-upload"
+          />
+          <label htmlFor="ecg-upload" className="cursor-pointer">
+            {ecgSignal ? (
+              <div>
+                <p className="text-green-400 text-xs font-bold">✅ ECG Loaded</p>
+                <p className="text-gray-400 text-xs">{ecgFileName}</p>
+                <p className="text-gray-500 text-xs">{ecgSignal.length} data points</p>
+              </div>
+            ) : (
+              <div>
+                <p className="text-gray-400 text-xs">Click to upload ECG CSV</p>
+                <p className="text-gray-600 text-xs">187 time-point ECG signal</p>
+              </div>
+            )}
+          </label>
+        </div>
+        {ecgSignal && (
+          <button
+            onClick={() => { setEcgSignal(null); setEcgFileName('') }}
+            className="text-red-400 text-xs mt-1 hover:text-red-300"
+          >
+            ✕ Remove ECG
+          </button>
+        )}
+      </div>
+
       <button
-        onClick={() => onSubmit(form)}
+        onClick={() => onSubmit({ ...form, ecg_signal: ecgSignal })}
         disabled={loading}
         className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 text-white font-bold py-3 rounded-xl transition-all"
       >
         {loading ? 'Analyzing...' : '⚕ Evaluate Symptoms'}
       </button>
+
+      {ecgSignal && (
+        <p className="text-yellow-400 text-xs text-center mt-2">
+          🔬 Multimodal analysis enabled (Tabular + ECG CNN)
+        </p>
+      )}
     </div>
   )
 }

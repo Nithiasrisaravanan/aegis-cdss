@@ -20,6 +20,8 @@ app.add_middleware(
     allow_headers=["*"]
 )
 
+from typing import Optional, List
+
 class PatientInput(BaseModel):
     age: float
     sex: float
@@ -34,6 +36,7 @@ class PatientInput(BaseModel):
     slope: float
     ca: float
     thal: float
+    ecg_signal: Optional[List[float]] = None
 
 class PrescriptionInput(BaseModel):
     patient_name: str
