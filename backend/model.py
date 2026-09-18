@@ -33,20 +33,24 @@ def predict(patient: dict) -> dict:
     # Specific diagnosis mapping
     specific_diagnosis = map_to_specific_diagnosis(patient, rf_class, rf_confidence)
 
-    # Differential diagnosis
+    # Differential diagnosis — always sums to 100%
     no_disease_prob = round(float(rf_proba[0]) * 100, 1)
     disease_prob = round(float(rf_proba[1]) * 100, 1)
 
     if rf_class == 1:
+        remaining = round(100 - disease_prob, 1)
+        alt1 = round(remaining * 0.6, 1)
+        alt2 = round(remaining * 0.4, 1)
         differential = [
             {"label": specific_diagnosis["label"], "probability": disease_prob},
-            {"label": "Stable Angina Pectoris (alternate consideration)", "probability": round(disease_prob * 0.6, 1)},
-            {"label": "No Cardiac Abnormality", "probability": no_disease_prob},
+            {"label": "Stable Angina Pectoris (alternate consideration)", "probability": alt1},
+            {"label": "No Cardiac Abnormality", "probability": alt2},
         ]
     else:
+        remaining = round(100 - no_disease_prob, 1)
         differential = [
             {"label": specific_diagnosis["label"], "probability": no_disease_prob},
-            {"label": "Hypertensive Heart Disease (if risk factors persist)", "probability": disease_prob},
+            {"label": "Hypertensive Heart Disease (if risk factors persist)", "probability": remaining},
         ]
 
     # ECG Fusion (optional)
@@ -102,7 +106,7 @@ if __name__ == '__main__':
     result = predict(test_patient)
     print("\nTest Patient Prediction:")
     print(f"  Primary: {result['primary']['label']} ({result['primary']['probability']}%)")
-    print(f"  Fused Probability: {result['primary']['fused_probability']}%")
-    print(f"  ECG: {result['ecg']['ecg_class']}")
-    print(f"  Fusion Used: {result['fusion']['fusion_used']}")
+    print(f"  Fused: {result['primary']['fused_probability']}%")
     print(f"  Differential: {result['differential']}")
+    total = sum(d['probability'] for d in result['differential'])
+    print(f"  Differential Total: {total}% (should be 100%)")
