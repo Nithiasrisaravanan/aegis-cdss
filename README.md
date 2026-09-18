@@ -1,4 +1,5 @@
-# ⚕ Aegis CDSS — AI-Enhanced Clinical Decision Support System
+# ⚕ Aegis CDSS
+## An Explainable Multimodal Clinical Decision Support System for Cardiac Risk Assessment Using ECG-CNN Fusion and Evidence-Grounded Feature Validation. 
 
 > **Decision support, not a diagnosis. The clinician makes the final call.**
 
