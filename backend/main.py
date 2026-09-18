@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from typing import Optional, List
 import sys, os, json
 sys.path.insert(0, os.path.dirname(__file__))
 
@@ -11,6 +12,9 @@ from llm import generate_report
 from credibility import score_all_features
 from myhealthbox_api import get_medicines, get_stockist_coords
 from prescriptions import publish_prescription, get_all_prescriptions
+from comparison import compare_shap_lime
+from ablation import run_ablation
+
 app = FastAPI(title="Aegis CDSS API")
 
 app.add_middleware(
@@ -19,8 +23,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"]
 )
-
-from typing import Optional, List
 
 class PatientInput(BaseModel):
     age: float
@@ -103,6 +105,28 @@ def analyze_endpoint(patient: PatientInput):
             "report": report,
             "medicines": medicines
         }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/compare")
+def compare_endpoint(patient: PatientInput):
+    try:
+        data = patient.dict()
+        result = compare_shap_lime(data)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/ablation")
+def ablation_endpoint():
+    try:
+        ablation_path = os.path.join("models", "ablation_results.json")
+        if os.path.exists(ablation_path):
+            with open(ablation_path) as f:
+                return json.load(f)
+        else:
+            results = run_ablation()
+            return results
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

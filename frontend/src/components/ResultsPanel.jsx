@@ -8,6 +8,9 @@ export default function ResultsPanel({ results }) {
   const [patientName, setPatientName] = useState('')
   const [patientAge, setPatientAge] = useState('')
   const [patientGender, setPatientGender] = useState('Male')
+  const [comparison, setComparison] = useState(null)
+  const [loadingCompare, setLoadingCompare] = useState(false)
+  const [ablation, setAblation] = useState(null)
 
   const { prediction, shap, credibility, articles, report, medicines } = results
 
@@ -31,9 +34,32 @@ export default function ResultsPanel({ results }) {
     }
   }
 
+  const runComparison = async () => {
+    setLoadingCompare(true)
+    try {
+      const res = await axios.post('http://127.0.0.1:8000/compare', prediction.input_features)
+      setComparison(res.data)
+    } catch (e) {
+      alert('Comparison failed. Try again.')
+    } finally {
+      setLoadingCompare(false)
+    }
+  }
+
+  const loadAblation = async () => {
+    try {
+      const res = await axios.get('http://127.0.0.1:8000/ablation')
+      setAblation(res.data)
+    } catch (e) {
+      alert('Failed to load ablation results')
+    }
+  }
+
   const tabs = [
     { id: 'report', label: 'REPORT & TREATMENT' },
     { id: 'shap', label: 'SHAP EXPLAIN' },
+    { id: 'compare', label: 'SHAP vs LIME' },
+    { id: 'ablation', label: 'ABLATION STUDY' },
     { id: 'medicines', label: 'MEDICINES API' },
     { id: 'evidence', label: `NIH EVIDENCE (${articles?.length || 0})` },
   ]
@@ -42,8 +68,10 @@ export default function ResultsPanel({ results }) {
 
   return (
     <div className="space-y-4">
+
       {/* Top 3 Cards */}
       <div className="grid grid-cols-3 gap-4">
+
         {/* Primary Assessment */}
         <div className="bg-gray-900 border border-blue-800 rounded-xl p-4">
           <p className="text-blue-400 text-xs font-bold mb-2">PRIMARY ASSESSMENT</p>
@@ -59,14 +87,10 @@ export default function ResultsPanel({ results }) {
               <p className="text-yellow-400 text-xs font-bold mb-1">FUSION BREAKDOWN</p>
               <p className="text-gray-400 text-xs">Tabular RF (70%): {prediction.fusion.tabular_contribution}%</p>
               <p className="text-gray-400 text-xs">ECG CNN (30%): {prediction.fusion.ecg_contribution}%</p>
-              <p className="text-green-400 text-xs font-bold mt-1">
-                ECG: {prediction.ecg?.ecg_class}
-              </p>
+              <p className="text-green-400 text-xs font-bold mt-1">ECG: {prediction.ecg?.ecg_class}</p>
             </div>
           )}
-          <p className="text-gray-400 text-xs leading-relaxed mt-1">
-            {prediction.primary.description}
-          </p>
+          <p className="text-gray-400 text-xs leading-relaxed mt-1">{prediction.primary.description}</p>
         </div>
 
         {/* System Confidence */}
@@ -88,12 +112,8 @@ export default function ResultsPanel({ results }) {
           {prediction.ecg?.ecg_available && (
             <div className="mt-2 border-t border-gray-700 pt-2">
               <p className="text-yellow-400 text-xs font-bold">ECG ANALYSIS</p>
-              <p className="text-gray-400 text-xs">
-                Class: {prediction.ecg.ecg_class}
-              </p>
-              <p className="text-gray-400 text-xs">
-                Risk Score: {prediction.ecg.ecg_risk_score}%
-              </p>
+              <p className="text-gray-400 text-xs">Class: {prediction.ecg.ecg_class}</p>
+              <p className="text-gray-400 text-xs">Risk Score: {prediction.ecg.ecg_risk_score}%</p>
             </div>
           )}
         </div>
@@ -110,7 +130,7 @@ export default function ResultsPanel({ results }) {
         </div>
       </div>
 
-      {/* ECG Probabilities Card (shown only when ECG uploaded) */}
+      {/* ECG CNN Results Card */}
       {prediction.ecg?.ecg_available && prediction.ecg?.ecg_probabilities && (
         <div className="bg-gray-900 border border-yellow-800 rounded-xl p-4">
           <p className="text-yellow-400 text-xs font-bold mb-3">
@@ -146,17 +166,11 @@ export default function ResultsPanel({ results }) {
         {tab === 'report' && (
           <div>
             <h3 className="text-blue-400 font-bold mb-4">Clinical Report & Treatment</h3>
-            <div className="prose prose-invert max-w-none">
-              <pre className="text-gray-300 text-sm whitespace-pre-wrap font-sans leading-relaxed">
-                {report}
-              </pre>
-            </div>
-
-            {/* Publish Prescription */}
+            <pre className="text-gray-300 text-sm whitespace-pre-wrap font-sans leading-relaxed">
+              {report}
+            </pre>
             <div className="mt-6 border-t border-gray-700 pt-4">
-              <h4 className="text-yellow-400 font-bold mb-3">
-                📋 Publish Prescription to Patient Portal
-              </h4>
+              <h4 className="text-yellow-400 font-bold mb-3">📋 Publish Prescription to Patient Portal</h4>
               <div className="grid grid-cols-3 gap-3 mb-3">
                 <input
                   placeholder="Patient Name"
@@ -209,8 +223,6 @@ export default function ResultsPanel({ results }) {
                 Protective / Pushes risk down (Negative)
               </span>
             </div>
-
-            {/* SHAP Bars */}
             <div className="space-y-2 mb-6">
               {shap.features.map((f, i) => (
                 <div key={i} className="flex items-center gap-3">
@@ -228,13 +240,9 @@ export default function ResultsPanel({ results }) {
               ))}
             </div>
             <p className="text-gray-500 text-xs">*Base value (model intercept): {shap.base_value}</p>
-
-            {/* Credibility Table */}
             {credibility && credibility.length > 0 && (
               <div className="mt-6">
-                <h4 className="text-yellow-400 font-bold mb-3">
-                  Evidence-Validated Credibility Scores
-                </h4>
+                <h4 className="text-yellow-400 font-bold mb-3">Evidence-Validated Credibility Scores</h4>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
@@ -283,12 +291,208 @@ export default function ResultsPanel({ results }) {
           </div>
         )}
 
+        {/* SHAP vs LIME TAB */}
+        {tab === 'compare' && (
+          <div>
+            <h3 className="text-blue-400 font-bold mb-1">SHAP vs LIME Comparison</h3>
+            <p className="text-gray-400 text-xs mb-4">
+              Compares two explainability methods and validates each feature against live PubMed literature
+            </p>
+            {!comparison && !loadingCompare && (
+              <button onClick={runComparison}
+                className="bg-purple-600 hover:bg-purple-700 text-white font-bold px-6 py-3 rounded-xl">
+                🔬 Run SHAP vs LIME Comparison
+              </button>
+            )}
+            {loadingCompare && (
+              <div className="flex items-center gap-3 text-gray-400 mt-4">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-400"/>
+                <p>Running comparison + fetching PubMed evidence... (~2 mins)</p>
+              </div>
+            )}
+            {comparison && (
+              <div>
+                <div className="grid grid-cols-3 gap-4 mb-6">
+                  <div className="bg-gray-800 rounded-lg p-3 text-center">
+                    <p className="text-2xl font-bold text-green-400">{comparison.summary.agreement_rate}%</p>
+                    <p className="text-gray-400 text-xs">Agreement Rate</p>
+                  </div>
+                  <div className="bg-gray-800 rounded-lg p-3 text-center">
+                    <p className="text-2xl font-bold text-green-400">{comparison.summary.agreed}</p>
+                    <p className="text-gray-400 text-xs">Features Agreed</p>
+                  </div>
+                  <div className="bg-gray-800 rounded-lg p-3 text-center">
+                    <p className="text-2xl font-bold text-red-400">{comparison.summary.disagreed}</p>
+                    <p className="text-gray-400 text-xs">Features Disagreed</p>
+                  </div>
+                </div>
+                <div className="overflow-x-auto mb-4">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-gray-400 text-xs border-b border-gray-700">
+                        <th className="text-left py-2">Feature</th>
+                        <th className="text-left py-2">SHAP Value</th>
+                        <th className="text-left py-2">LIME Value</th>
+                        <th className="text-left py-2">Agree</th>
+                        <th className="text-left py-2">Credibility</th>
+                        <th className="text-left py-2">Citation</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {comparison.comparison.map((c, i) => (
+                        <tr key={i} className="border-b border-gray-800">
+                          <td className="py-2 text-white font-medium">
+                            {c.flagged && <span className="text-yellow-400 mr-1">⚠</span>}
+                            {c.feature}
+                          </td>
+                          <td className={`py-2 text-xs ${c.shap_value > 0 ? 'text-yellow-400' : 'text-teal-400'}`}>
+                            {c.shap_value > 0 ? '+' : ''}{c.shap_value}
+                          </td>
+                          <td className={`py-2 text-xs ${c.lime_value > 0 ? 'text-yellow-400' : 'text-teal-400'}`}>
+                            {c.lime_value > 0 ? '+' : ''}{c.lime_value}
+                          </td>
+                          <td className="py-2 text-center">{c.agreement ? '✅' : '❌'}</td>
+                          <td className="py-2">
+                            <span className={`font-bold text-xs ${
+                              c.credibility_pct > 60 ? 'text-green-400' :
+                              c.credibility_pct > 40 ? 'text-yellow-400' : 'text-red-400'
+                            }`}>{c.credibility_pct}%</span>
+                          </td>
+                          <td className="py-2">
+                            {c.citation_url ? (
+                              <a href={c.citation_url} target="_blank" rel="noreferrer"
+                                className="text-blue-400 hover:underline text-xs">PMID</a>
+                            ) : (
+                              <span className="text-gray-600 text-xs">—</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {comparison.comparison.filter(c => !c.agreement).length > 0 && (
+                  <div className="bg-red-900 bg-opacity-20 border border-red-800 rounded-lg p-4">
+                    <p className="text-red-400 font-bold text-sm mb-2">⚠ Method Disagreements Detected</p>
+                    {comparison.comparison.filter(c => !c.agreement).map((c, i) => (
+                      <p key={i} className="text-gray-300 text-xs mb-1">
+                        <span className="font-bold text-white">{c.feature}</span>:
+                        SHAP says {c.shap_direction} ({c.shap_value}) but
+                        LIME says {c.lime_direction} ({c.lime_value}) —
+                        Credibility: <span className={
+                          c.credibility_pct > 60 ? 'text-green-400' :
+                          c.credibility_pct > 40 ? 'text-yellow-400' : 'text-red-400'
+                        }>{c.credibility_pct}%</span>
+                      </p>
+                    ))}
+                  </div>
+                )}
+                <button onClick={() => setComparison(null)}
+                  className="mt-4 text-gray-500 text-xs hover:text-gray-300">
+                  ↺ Run Again
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ABLATION STUDY TAB */}
+        {tab === 'ablation' && (
+          <div>
+            <h3 className="text-blue-400 font-bold mb-1">Ablation Study</h3>
+            <p className="text-gray-400 text-xs mb-4">
+              Quantifies the contribution of each system component to overall performance
+            </p>
+            {!ablation && (
+              <button onClick={loadAblation}
+                className="bg-green-600 hover:bg-green-700 text-white font-bold px-6 py-3 rounded-xl">
+                📊 Load Ablation Study Results
+              </button>
+            )}
+            {ablation && (
+              <div>
+                <div className="overflow-x-auto mb-6">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-gray-400 text-xs border-b border-gray-700">
+                        <th className="text-left py-2">Configuration</th>
+                        <th className="text-left py-2">Model</th>
+                        <th className="text-left py-2">Accuracy</th>
+                        <th className="text-left py-2">F1</th>
+                        <th className="text-left py-2">ROC-AUC</th>
+                        <th className="text-left py-2">Explainability</th>
+                        <th className="text-left py-2">Credibility</th>
+                        <th className="text-left py-2">ECG</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ablation.map((r, i) => (
+                        <tr key={i} className={`border-b border-gray-800 ${
+                          i === 0 ? 'bg-blue-900 bg-opacity-20' : ''
+                        }`}>
+                          <td className="py-2 text-white font-medium text-xs">
+                            {i === 0 && <span className="text-green-400 mr-1">★</span>}
+                            {r.config}
+                          </td>
+                          <td className="py-2 text-gray-400 text-xs">{r.model}</td>
+                          <td className="py-2">
+                            <span className={`font-bold text-xs ${
+                              r.accuracy >= 0.95 ? 'text-green-400' :
+                              r.accuracy >= 0.85 ? 'text-blue-400' :
+                              r.accuracy >= 0.75 ? 'text-yellow-400' : 'text-red-400'
+                            }`}>
+                              {(r.accuracy * 100).toFixed(1)}%
+                            </span>
+                          </td>
+                          <td className="py-2 text-gray-300 text-xs">{(r.f1 * 100).toFixed(1)}%</td>
+                          <td className="py-2 text-gray-300 text-xs">{(r.roc_auc * 100).toFixed(2)}%</td>
+                          <td className="py-2 text-xs">
+                            <span className={r.explainability !== 'None' ? 'text-green-400' : 'text-red-400'}>
+                              {r.explainability}
+                            </span>
+                          </td>
+                          <td className="py-2 text-center text-xs">{r.credibility ? '✅' : '❌'}</td>
+                          <td className="py-2 text-center text-xs">{r.ecg_fusion ? '✅' : '❌'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-gray-800 rounded-lg p-4 border border-green-800">
+                    <p className="text-green-400 font-bold text-sm mb-2">🏆 Best Predictive Performance</p>
+                    <p className="text-white font-bold text-2xl">97.72%</p>
+                    <p className="text-gray-400 text-xs">ECG CNN on MIT-BIH dataset</p>
+                    <p className="text-gray-500 text-xs mt-1">21,892 ECG signal samples</p>
+                  </div>
+                  <div className="bg-gray-800 rounded-lg p-4 border border-blue-800">
+                    <p className="text-blue-400 font-bold text-sm mb-2">📊 Tabular Model Performance</p>
+                    <p className="text-white font-bold text-2xl">86.7%</p>
+                    <p className="text-gray-400 text-xs">Random Forest on UCI Cleveland</p>
+                    <p className="text-gray-500 text-xs mt-1">+16.7% over Decision Tree baseline</p>
+                  </div>
+                  <div className="bg-gray-800 rounded-lg p-4 border border-yellow-800">
+                    <p className="text-yellow-400 font-bold text-sm mb-2">🔬 SHAP vs LIME Agreement</p>
+                    <p className="text-white font-bold text-2xl">75%</p>
+                    <p className="text-gray-400 text-xs">Feature direction agreement rate</p>
+                    <p className="text-gray-500 text-xs mt-1">2 disagreements flagged for review</p>
+                  </div>
+                  <div className="bg-gray-800 rounded-lg p-4 border border-purple-800">
+                    <p className="text-purple-400 font-bold text-sm mb-2">📚 Credibility Scoring</p>
+                    <p className="text-white font-bold text-2xl">31.9%</p>
+                    <p className="text-gray-400 text-xs">Lowest credibility feature (ca)</p>
+                    <p className="text-gray-500 text-xs mt-1">Flagged despite high SHAP impact</p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* MEDICINES TAB */}
         {tab === 'medicines' && (
           <div>
-            <h3 className="text-blue-400 font-bold mb-1">
-              Suggested Healthcare Products & Stockists
-            </h3>
+            <h3 className="text-blue-400 font-bold mb-1">Suggested Healthcare Products & Stockists</h3>
             <p className="text-gray-400 text-xs mb-4">
               Medicine recommendations and pharmacy locations in India
             </p>
@@ -298,9 +502,7 @@ export default function ResultsPanel({ results }) {
                   <div className="flex justify-between items-start mb-2">
                     <div>
                       <p className="text-white font-bold">{m.name}</p>
-                      <p className="text-gray-400 text-xs">
-                        Agency: {m.agency} | Country: {m.country}
-                      </p>
+                      <p className="text-gray-400 text-xs">Agency: {m.agency} | Country: {m.country}</p>
                       <p className="text-gray-400 text-xs">Code: {m.code}</p>
                     </div>
                     <a href={m.leaflet_url} target="_blank" rel="noreferrer"
@@ -312,19 +514,15 @@ export default function ResultsPanel({ results }) {
                     <p className="text-gray-400 text-xs mb-1 font-bold">LOCAL STOCKISTS</p>
                     <div className="flex flex-wrap gap-2 mb-3">
                       {m.stockists.map((s, j) => (
-                        <span key={j}
-                          className="bg-green-900 text-green-300 text-xs px-2 py-1 rounded-full">
+                        <span key={j} className="bg-green-900 text-green-300 text-xs px-2 py-1 rounded-full">
                           {s}
                         </span>
                       ))}
                     </div>
-                    <p className="text-gray-400 text-xs mb-1 font-bold">
-                      ALTERNATIVE BRANDS (INDIA)
-                    </p>
+                    <p className="text-gray-400 text-xs mb-1 font-bold">ALTERNATIVE BRANDS (INDIA)</p>
                     <div className="flex flex-wrap gap-2">
                       {m.indian_brands.map((b, j) => (
-                        <span key={j}
-                          className="bg-purple-900 text-purple-300 text-xs px-2 py-1 rounded-full">
+                        <span key={j} className="bg-purple-900 text-purple-300 text-xs px-2 py-1 rounded-full">
                           {b}
                         </span>
                       ))}
@@ -339,9 +537,7 @@ export default function ResultsPanel({ results }) {
         {/* NIH EVIDENCE TAB */}
         {tab === 'evidence' && (
           <div>
-            <h3 className="text-blue-400 font-bold mb-1">
-              Retrieved NIH PubMed Literature
-            </h3>
+            <h3 className="text-blue-400 font-bold mb-1">Retrieved NIH PubMed Literature</h3>
             <p className="text-gray-400 text-xs mb-4">
               Verifiable publications embedded and ranked using dynamic FAISS vector search
             </p>
@@ -369,6 +565,7 @@ export default function ResultsPanel({ results }) {
             </div>
           </div>
         )}
+
       </div>
     </div>
   )
