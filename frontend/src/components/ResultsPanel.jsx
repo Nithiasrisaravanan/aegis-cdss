@@ -88,6 +88,12 @@ export default function ResultsPanel({ results }) {
               <p className="text-gray-400 text-xs">Tabular RF (70%): {prediction.fusion.tabular_contribution}%</p>
               <p className="text-gray-400 text-xs">ECG CNN (30%): {prediction.fusion.ecg_contribution}%</p>
               <p className="text-green-400 text-xs font-bold mt-1">ECG: {prediction.ecg?.ecg_class}</p>
+              {prediction.fusion.modality_conflict && (
+                <div className="mt-2 bg-red-900 bg-opacity-40 border border-red-600 rounded p-2">
+                  <p className="text-red-400 text-xs font-bold">⚠ MODALITY CONFLICT</p>
+                  <p className="text-red-300 text-xs">{prediction.fusion.conflict_message}</p>
+                </div>
+              )}
             </div>
           )}
           <p className="text-gray-400 text-xs leading-relaxed mt-1">{prediction.primary.description}</p>

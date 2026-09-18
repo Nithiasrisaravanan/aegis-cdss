@@ -5,13 +5,11 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 from sklearn.metrics import accuracy_score, classification_report
-import joblib
 import os
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ECG_MODEL_PATH = os.path.join(BASE_DIR, 'models', 'ecg_cnn_model.pth')
 
-# ── 1. Dataset ────────────────────────────────────────────────────────────────
 class ECGDataset(Dataset):
     def __init__(self, X, y):
         self.X = torch.tensor(X, dtype=torch.float32).unsqueeze(1)
@@ -23,7 +21,6 @@ class ECGDataset(Dataset):
     def __getitem__(self, idx):
         return self.X[idx], self.y[idx]
 
-# ── 2. 1D CNN Model ───────────────────────────────────────────────────────────
 class ECG_CNN(nn.Module):
     def __init__(self, num_classes=5):
         super(ECG_CNN, self).__init__()
@@ -32,12 +29,10 @@ class ECG_CNN(nn.Module):
             nn.BatchNorm1d(32),
             nn.ReLU(),
             nn.MaxPool1d(2),
-
             nn.Conv1d(32, 64, kernel_size=5, padding=2),
             nn.BatchNorm1d(64),
             nn.ReLU(),
             nn.MaxPool1d(2),
-
             nn.Conv1d(64, 128, kernel_size=3, padding=1),
             nn.BatchNorm1d(128),
             nn.ReLU(),
@@ -56,7 +51,6 @@ class ECG_CNN(nn.Module):
         x = self.classifier(x)
         return x
 
-# ── 3. Train ──────────────────────────────────────────────────────────────────
 def train_ecg_model():
     print("Loading ECG data...")
     train_path = os.path.join(BASE_DIR, 'data', 'ecg', 'mitbih_train.csv')
@@ -71,9 +65,7 @@ def train_ecg_model():
     y_test = test_df.iloc[:, -1].values.astype(np.int64)
 
     print(f"Train: {len(X_train)} | Test: {len(X_test)}")
-    print(f"Classes: {np.unique(y_train)}")
 
-    # Use subset for faster training
     subset = 20000
     idx = np.random.choice(len(X_train), subset, replace=False)
     X_train = X_train[idx]
@@ -107,7 +99,6 @@ def train_ecg_model():
         scheduler.step()
         print(f"Epoch {epoch+1}/10 | Loss: {total_loss/len(train_loader):.4f}")
 
-    # Evaluate
     model.eval()
     all_preds, all_labels = [], []
     with torch.no_grad():
@@ -127,7 +118,6 @@ def train_ecg_model():
     print(f"✅ ECG CNN model saved to {ECG_MODEL_PATH}")
     return model, acc
 
-# ── 4. Inference ──────────────────────────────────────────────────────────────
 def load_ecg_model():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = ECG_CNN(num_classes=5).to(device)
@@ -136,10 +126,6 @@ def load_ecg_model():
     return model, device
 
 def predict_ecg(ecg_signal: list) -> dict:
-    """
-    ecg_signal: list of 187 float values representing one ECG beat
-    Returns: predicted class, probabilities, cardiac risk score
-    """
     try:
         model, device = load_ecg_model()
         signal = np.array(ecg_signal, dtype=np.float32)
@@ -171,30 +157,40 @@ def predict_ecg(ecg_signal: list) -> dict:
             "error": str(e)
         }
 
-# ── 5. Fusion ─────────────────────────────────────────────────────────────────
 def fuse_predictions(tabular_prob: float, ecg_risk_score: float,
                      ecg_available: bool, weight_tabular: float = 0.7) -> dict:
-    """
-    Fuses tabular RF probability with ECG CNN risk score.
-    Default: 70% tabular + 30% ECG
-    """
     if not ecg_available:
         return {
             "fused_probability": round(tabular_prob * 100, 1),
             "fusion_used": False,
-            "weights": {"tabular": 1.0, "ecg": 0.0}
+            "weights": {"tabular": 1.0, "ecg": 0.0},
+            "modality_conflict": False,
+            "conflict_message": None
         }
 
     weight_ecg = 1 - weight_tabular
     ecg_prob = ecg_risk_score / 100
     fused = (weight_tabular * tabular_prob) + (weight_ecg * ecg_prob)
 
+    # Detect modality conflict — flag when ECG and tabular differ significantly
+    conflict = abs(ecg_prob - tabular_prob) > 0.15
+
+    if conflict:
+        if ecg_prob > tabular_prob:
+            conflict_message = "⚠ ECG signal indicates higher cardiac risk than tabular features — recommend clinical ECG review"
+        else:
+            conflict_message = "⚠ Tabular features indicate higher risk than ECG signal — consider additional diagnostic workup"
+    else:
+        conflict_message = None
+
     return {
         "fused_probability": round(fused * 100, 1),
         "fusion_used": True,
         "weights": {"tabular": weight_tabular, "ecg": weight_ecg},
         "tabular_contribution": round(tabular_prob * 100, 1),
-        "ecg_contribution": round(ecg_prob * 100, 1)
+        "ecg_contribution": round(ecg_prob * 100, 1),
+        "modality_conflict": conflict,
+        "conflict_message": conflict_message
     }
 
 if __name__ == '__main__':
